@@ -19,7 +19,6 @@ from copy import copy
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
 from sklearn.metrics import precision_recall_fscore_support
-import seaborn as sns
 from matplotlib import pyplot as plt
 
 
@@ -494,10 +493,6 @@ class skipthought(object):
                 result.columns = pd.Index(['cyto', 'secreted', 'mito', 'nucleus', 'prediction'])
                 print(result)
 
-               
-                result = result.drop('Total', 1)
-                sns.heatmap(result, vmin=0.0, vmax=500, square=True, cmap="Reds", annot=True, fmt='g')
-                plt.show()
 
 def stats():
 
@@ -535,7 +530,7 @@ if __name__ == '__main__':
 
     labels_string = ['cyto', 'secreted', 'mito', 'nucleus']
 
-    model = skipthought(mode = 'Test',
+    model = skipthought(mode = 'Train',
         path = './model/',
         folds = 5,
         embedding_size = 32, 
