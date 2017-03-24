@@ -42,7 +42,10 @@ class skipthought(object):
 
     def save_model(self, session, epoch):
 
-        name = 'peter'
+        '''
+        Helper function to save the TF graph
+        '''
+
         if not os.path.exists('./model/'):
             os.mkdir('./model/')
         saver = tf.train.Saver(write_version = tf.train.SaverDef.V1)
@@ -53,9 +56,27 @@ class skipthought(object):
 
 
     def embed_data(self, data):
+
+        '''
+        Takes a batch of amino acids as input and embeds them using the current embedding matrix.
+        '''
+
         return tf.nn.embedding_lookup(self.word_embeddings, data)
 
     def encoder(self, sentences_embedded, sentences_lengths, dropout, bidirectional = False):
+
+        '''
+        This functions uses a GRU cell to encode amino acid sequences
+
+        Takes as inputs 
+        -   embedded amino acid sequences
+        -   the corresponding sequence lengths
+        -   the dropout keep-probability and 
+        -   a flag for whether a one-directional or bidirectional model shall be trained
+    
+        Returns the last memory state of the GRU cell
+        '''
+
         with tf.variable_scope("encoder") as varscope:
             cell = tf.contrib.rnn.GRUCell(self.hidden_size)
             cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob = dropout)
@@ -81,13 +102,33 @@ class skipthought(object):
         return sentences_states_h
 
     def get_CE_loss(self, labels, logits):
+
+        '''
+        Takes as inputs:
+        -   true labels for each amino acid sequence in the batch
+        -   predicted logits for each amino acid sequence in the batch
+
+        Returns the mean cross entropy loss for this batch
+        '''
+
         return tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
 
     def get_L2_loss(self):
+
+        '''
+        Returns the L2 loss from all parameters of the model (excluding biases)
+        '''
+
         all_vars = tf.trainable_variables() 
         return tf.add_n([ tf.nn.l2_loss(v) for v in all_vars if 'bias' not in v.name ]) * self.L2 
 
     def batch_norm_wrapper(self, inputs, is_training, decay = 0.999):
+
+        '''
+        Takes as input the inputs that go into a layer of the network.
+        Returns the normalised (with respect to batch mean and variance) inputs
+        Adopted from: http://r2rt.com/implementing-batch-normalization-in-tensorflow.html
+        '''
 
         scale = tf.Variable(tf.ones([inputs.get_shape()[-1]]))
         beta = tf.Variable(tf.zeros([inputs.get_shape()[-1]]))
@@ -108,6 +149,11 @@ class skipthought(object):
                 pop_mean, pop_var, beta, scale, 0.0001)
 
     def summary_stats(self, lengths, labels, name):
+
+        '''
+        Takes as input the lengths and labels of amino acid sequences
+        Prints and returns pandas dataframes containing descriptive statistics
+        '''
 
         bins = [0,100,500,1000,1500,1999]
         labels_string = ['cyto', 'secreted', 'mito', 'nucleus']
@@ -132,6 +178,11 @@ class skipthought(object):
 
     def confusion(self, gold, prediction, lengths, min_length = 0, max_length = np.inf):
 
+        '''
+        Takes as input the gold and predicted labels
+        Returns a pandas dataframe containing a confusion matrix
+        '''
+
         labels_string = ['cyto', 'secreted', 'mito', 'nucleus']
         a = lengths > min_length
         b = lengths < max_length
@@ -151,14 +202,20 @@ class skipthought(object):
 
     def run(self):
 
+        '''
+        Runs the model according to the specified settings
+        -   If mode = Train: Train a GRU model using the training data
+        -   If mode = Val: Load the saved GRU model and evaluate it on the validation fold
+        -   If mode = Test: Load the saved GRU model and evaluate it on the blind test set
+        '''
         
-        # if (self.mode == 'Train'):
         self.is_train = (self.mode == 'Train') 
-        # else:
 
         if not os.path.exists(self.path):
             os.mkdir(self.path)
 
+
+        # Load the training data
         with open('train_data.pkl', 'rb') as f:
             data_sequences = pkl.load(f)
         with open('train_labels.pkl', 'rb') as f:
@@ -168,11 +225,13 @@ class skipthought(object):
         self.dictionary = sorted(dictionary.items(), key=operator.itemgetter(1))
         print(self.dictionary)
         self.vocabulary_size = len(dictionary)
-
         self.val_size = len(data_sequences) // self.folds
         fold = 1
-
         print('Training fold number %d. Each fold of size %d' % (fold, len(data_sequences) // self.folds))
+
+
+        # Truncates sequences at length 2000 and returns descriptive statistics.
+        # This is done by concatenating the first 1900 and the last 100 amino acids.
 
         if self.is_train:
             self.max_seq_len = 2000
@@ -183,7 +242,6 @@ class skipthought(object):
                 if data_lengths[i] > self.max_seq_len:
                     data_sequences[i] = np.concatenate((enc_sequences[i,:self.max_seq_len - 100], enc_sequences[i,-100:]), axis = 0)
                     data_lengths[i] = self.max_seq_len
-            # data_sequences = enc_sequences
 
             if self.folds == 1:
                 val_mask = np.array([False])
@@ -239,20 +297,23 @@ class skipthought(object):
             with open(self.path + 'this_data.pkl', 'rb') as f:
                 self.train_data, self.train_labels, self.train_lengths, self.val_data, self.val_labels, self.val_lengths, self.train_statistics, self.train_frame, self.val_statistics, self.val_frame, self.train_original_lengths, self.val_original_lengths = pkl.load(f)
 
+        # Now construct the Tensorflow graph
         print('\r~~~~~~~ Building model ~~~~~~~\r')
+
+        # Define placeholders and variables
         initializer = tf.random_normal_initializer()
         self.word_embeddings = tf.get_variable('embeddings', [self.vocabulary_size, self.embedding_size], tf.float32, initializer = initializer)
-
         sequences = tf.placeholder(tf.int32, [None, None], "sequences")
         sequences_lengths = tf.placeholder(tf.int32, [None], "sequences_lengths")
         labels = tf.placeholder(tf.int64, [None], "labels")
         keep_prob_dropout = tf.placeholder(tf.float32, name='dropout')
-
         global_step = tf.Variable(0, name = 'global_step', trainable = False)
 
+        # Embed and encode sequences
         sequences_embedded = self.embed_data(sequences) 
         encoded_sequences = self.encoder(sequences_embedded, sequences_lengths, keep_prob_dropout, bidirectional = self.bidirectional)
 
+        # Take last hidden state of GRU and put them through a nonlinear and a linear FC layer
         with tf.name_scope('non_linear_layer'):
             encoded_sentences_BN = self.batch_norm_wrapper(encoded_sequences, self.is_train)
             non_linear = tf.nn.dropout(tf.nn.relu(tf.contrib.layers.linear(encoded_sentences_BN, 64)), keep_prob = keep_prob_dropout)
@@ -261,32 +322,34 @@ class skipthought(object):
             non_linear_BN = self.batch_norm_wrapper(non_linear, self.is_train)
             logits = tf.contrib.layers.linear(non_linear_BN, 4)
 
-        probs = tf.nn.softmax(logits)
+        # Compute mean loss on this batch, consisting of cross entropy loss and L2 loss
         CE_loss = self.get_CE_loss(labels, logits) 
         L2_loss = self.get_L2_loss()
         loss = CE_loss + L2_loss
 
-        # opt_op = tf.train.AdamOptimizer(self.learning_rate).minimize(loss)
-        # opt_op = tf.contrib.layers.optimize_loss(loss, global_step=global_step , learning_rate = self.learning_rate, 'Adam')
-
-        # summaries = ['learning_rate']
-        # summaries = ["learning_rate", "loss", "gradients", "gradient_norm"]
-
+        # Perform training operation
         learning_rate = tf.train.exponential_decay(self.learning_rate, global_step, 100, 0.96, staircase=True)
-        
         opt_op = tf.contrib.layers.optimize_loss(loss = loss, global_step = global_step, learning_rate = learning_rate, optimizer = 'Adam', clip_gradients=2.0, 
             learning_rate_decay_fn=None, summaries = None) 
 
+        # Define scalars for Tensorboard
         tf.summary.scalar('CE_loss', CE_loss)
         tf.summary.scalar('L2_loss', L2_loss)
         tf.summary.scalar('loss', loss)
         tf.summary.scalar('learning_rate', learning_rate)
         
+        # Compute accuracy of prediction
+        probs = tf.nn.softmax(logits)
         with tf.name_scope('accuracy'):
             pred = tf.argmax(logits,1)
             correct_prediction = tf.equal(labels, pred)
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('accuracy', accuracy)
+
+        # If in training mode:
+        # - shuffle data set before each epoch
+        # - train model using mini batches
+        # - track performance on train and validation set throughout training
 
         if self.is_train == True:
             with tf.Session() as session:
@@ -390,6 +453,10 @@ class skipthought(object):
                     if 'y' in save:
                         self.save_model(session, epoch)
 
+        # If in validation mode:
+        # - Load saved model and evaluate on validation fold
+        # - Return list containing confusion matrices, and accuracy measures such as FPR and TPR
+
         elif self.mode == 'Val':
             with tf.Session() as session:
                 print('Restoring model...')
@@ -469,6 +536,9 @@ class skipthought(object):
                 if self.is_train == False:
                     return [val_confusion_1, val_confusion_2, val_confusion_3, self.this_sum, this_FPR, this_TPR]
 
+        # If in test model:
+        # - Load saved model and evaluate on test set
+        # - Print predicted probabilities for each protein in the test set
 
         elif self.mode == 'Test':
             with tf.Session() as session:
@@ -496,6 +566,10 @@ class skipthought(object):
 
 def stats():
 
+    '''
+    Helper function to print descriptive statistics of training data
+    '''
+    
     with open('train_data.pkl', 'rb') as f:
         data_sequences = pkl.load(f)
     with open('train_labels.pkl', 'rb') as f:

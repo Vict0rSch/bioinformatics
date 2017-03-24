@@ -8,6 +8,17 @@ import os
 
 def build_dictionary(sentences, vocab=None, max_sent_len_=None):
 
+    '''
+    This function takes as input raw amino acid sequences and outputs
+        - a dictionary and reverse ditionary containing all tokens (amino acids)
+        - encoded amino acid sequences. This is because the RNN requires numeric inputs
+        - the sequence length for each protein and the max sequence length across all proteins.
+            This is needed for the dynamic RNN function in tf.
+
+    If no vocabulary is provided, a new one will be create (this is used on the training data)
+    If a vocabulary is provided, then this vocabulary will be used to encode sequences (this is used on the test data)
+
+    '''
     is_ext_vocab = True
 
     # If no vocab provided, create a new one
@@ -51,6 +62,11 @@ def build_dictionary(sentences, vocab=None, max_sent_len_=None):
     return vocab, reverse_dictionary, sentence_lengths, max_sent_len+1, enc_sentences
 
 def generate_pkl(train):
+
+    '''
+    This takes as input a train/test flag, and then takes the raw 
+        input files in fasta format and return pickle files.
+    '''
     if train:
         files = ['cyto.fasta', 'secreted.fasta', 'mito.fasta', 'nucleus.fasta']
         prefix = 'train_'
