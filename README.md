@@ -8,6 +8,4 @@ The subcellular location of eukaryotic proteins can provide insights into the fu
 ## Results: 
 Using a special type of RNNs, a GRU (Gated Recurrent unit) with a single 64 unit layer, it is possible to achieve a cross-validated prediction accuracy of 69.58% with a 95% confidence interval of [68.36; 70.80]. As a by-product, the method also yields low dimensional vector representations of amino acids which allows to cluster similar amino acids together.
 
-<a href="https://drive.google.com/uc?export=view&id=0Byi15qAr2aO1Yms4b0thSWNBeEU"><img src="https://drive.google.com/uc?export=view&id=0Byi15qAr2aO1Yms4b0thSWNBeEU" style="width: 500px; max-width: 100%; height: auto" title="Click for the larger version." /></a>
-Raw
-
+https://www.dropbox.com/s/fcwznbcaoglkj0w/confusion.png
