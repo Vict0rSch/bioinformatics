@@ -12,3 +12,4 @@ Using a special type of RNNs, a GRU (Gated Recurrent unit) with a single 64 unit
 ## Network architecture
 [![network.png](https://s20.postimg.org/reiopnt5p/network.png)](https://postimg.org/image/uy4mfgvvd/)
 
+Test Victor
